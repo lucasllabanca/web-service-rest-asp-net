@@ -145,7 +145,7 @@ namespace TrabalhoPraticoDM106.Controllers
 
         }
 
-        // PUT: api/Orders/close/5
+        // PUT: api/Orders/shipping/5
         [ResponseType(typeof(void))]
         [HttpPut]
         [Route("shipping/{id}")]
