@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Threading.Tasks;
 using System.Web;
 using System.Web.Http;
+using System.Text.Json;
 using System.Web.Http.ModelBinding;
 using Microsoft.AspNet.Identity;
 using Microsoft.AspNet.Identity.EntityFramework;
@@ -23,6 +24,7 @@ namespace TrabalhoPraticoDM106.Controllers
     [RoutePrefix("api/Account")]
     public class AccountController : ApiController
     {
+
         private const string LocalLoginProvider = "Local";
         private ApplicationUserManager _userManager;
 
@@ -328,7 +330,19 @@ namespace TrabalhoPraticoDM106.Controllers
                 return BadRequest(ModelState);
             }
 
-            var user = new ApplicationUser() { UserName = model.Email, Email = model.Email };
+            var crmClient = new HttpClient();
+            var postCustomerUri = new Uri("http://siecolacrm.azurewebsites.net/api/customers");
+            var jsondata = JsonSerializer.Serialize(model);
+            var content = new StringContent(jsondata, System.Text.Encoding.UTF8, "application/json");
+            crmClient.DefaultRequestHeaders.Add("Authorization", "Basic " + Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($"crmwebapi:crmwebapi")));
+            var response = await crmClient.PostAsync(postCustomerUri, content);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return StatusCode(response.StatusCode);
+            }
+
+            var user = new ApplicationUser() { UserName = model.Email, Email = model.Email, PhoneNumber = model.Mobile };
 
             IdentityResult result = await UserManager.CreateAsync(user, model.Password);
 

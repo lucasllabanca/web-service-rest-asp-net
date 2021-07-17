@@ -7,6 +7,8 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Web.Http;
+using System.Text.Json;
+using System.Threading.Tasks;
 using System.Web.Http.Description;
 using TrabalhoPraticoDM106.Data;
 using TrabalhoPraticoDM106.Models;
@@ -149,8 +151,12 @@ namespace TrabalhoPraticoDM106.Controllers
         [ResponseType(typeof(void))]
         [HttpPut]
         [Route("shipping/{id}")]
-        public HttpResponseMessage CalcShippingForOrder(int id)
+        public async Task<HttpResponseMessage> CalcShippingForOrder(int id)
         {
+
+            var cepAmazonCajamarSP = "07776901";
+            var cepDestino = "";
+
             var response = new HttpResponseMessage();
 
             Order order = db.Orders.Find(id);
@@ -169,13 +175,28 @@ namespace TrabalhoPraticoDM106.Controllers
                 return response;
             }
 
+            var crmClient = new HttpClient();
+            var getByEmailUri = new Uri("http://siecolacrm.azurewebsites.net/api/orders/byemail?email=" + order.UserEmail);
+            crmClient.DefaultRequestHeaders.Add("Authorization", "Basic " + Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($"crmwebapi:crmwebapi")));
+            var getResponse = await crmClient.GetAsync(getByEmailUri);
+            response.EnsureSuccessStatusCode();
+            
+            if (!getResponse.IsSuccessStatusCode)
+            {
+                response.StatusCode = getResponse.StatusCode;
+                response.Content = new StringContent(getResponse.ReasonPhrase);
+                return response;
+            }
+
+            string customerJson = await response.Content.ReadAsStringAsync();
+            RegisterBindingModel customer = JsonSerializer.Deserialize<RegisterBindingModel>(customerJson);
+
             decimal? altuTotal = order.OrderItems.Sum(orderI => orderI.Qtd * orderI.Product.Altura);
             decimal? largTotal = order.OrderItems.Sum(orderI => orderI.Qtd * orderI.Product.Largura);
             decimal? compTotal = order.OrderItems.Sum(orderI => orderI.Qtd * orderI.Product.Comprimento);
             decimal? diamTotal = order.OrderItems.Sum(orderI => orderI.Qtd * orderI.Product.Diametro);
             decimal pesoTotal = order.OrderItems.Sum(orderI => orderI.Qtd * orderI.Product.Peso);
             decimal precoTotal = order.OrderItems.Sum(orderI => orderI.Qtd * orderI.Product.Preco);
-
 
             order.PesoTotal = pesoTotal;
             order.PrecoTotal = precoTotal;

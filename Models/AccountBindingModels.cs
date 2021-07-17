@@ -48,6 +48,32 @@ namespace TrabalhoPraticoDM106.Models
         [Display(Name = "Confirm password")]
         [Compare("Password", ErrorMessage = "The password and confirmation password do not match.")]
         public string ConfirmPassword { get; set; }
+
+        [Required]
+        [MaxLength(12, ErrorMessage = "The CPF must be at most 12 characters long.")]
+        public string Cpf { get; set; }
+
+        [Required]
+        public string Name { get; set; }
+
+        [Required]
+        public string Address { get; set; }
+
+        [Required]
+        public string City { get; set; }
+
+        [Required]
+        public string State { get; set; }
+
+        [Required]
+        public string Country { get; set; }
+
+        [Required]
+        public string Zip { get; set; }
+
+        [Required]
+        public string Mobile { get; set; }
+
     }
 
     public class RegisterExternalBindingModel
