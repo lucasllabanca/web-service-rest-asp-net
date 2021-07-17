@@ -176,7 +176,7 @@ namespace TrabalhoPraticoDM106.Controllers
             }
 
             var crmClient = new HttpClient();
-            var getByEmailUri = new Uri("http://siecolacrm.azurewebsites.net/api/orders/byemail?email=" + order.UserEmail);
+            var getByEmailUri = new Uri("http://siecolacrm.azurewebsites.net/api/customers/byemail?email=" + order.UserEmail);
             crmClient.DefaultRequestHeaders.Add("Authorization", "Basic " + Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($"crmwebapi:crmwebapi")));
             var getResponse = await crmClient.GetAsync(getByEmailUri);
             response.EnsureSuccessStatusCode();
