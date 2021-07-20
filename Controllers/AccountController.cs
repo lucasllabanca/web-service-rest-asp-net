@@ -17,6 +17,7 @@ using Microsoft.Owin.Security.OAuth;
 using TrabalhoPraticoDM106.Models;
 using TrabalhoPraticoDM106.Providers;
 using TrabalhoPraticoDM106.Results;
+using TrabalhoPraticoDM106.CRMClient;
 
 namespace TrabalhoPraticoDM106.Controllers
 {
@@ -50,6 +51,8 @@ namespace TrabalhoPraticoDM106.Controllers
                 _userManager = value;
             }
         }
+
+        private CRMRestClient client = new CRMRestClient();
 
         public ISecureDataFormat<AuthenticationTicket> AccessTokenFormat { get; private set; }
 
@@ -330,12 +333,7 @@ namespace TrabalhoPraticoDM106.Controllers
                 return BadRequest(ModelState);
             }
 
-            var crmClient = new HttpClient();
-            var postCustomerUri = new Uri("http://siecolacrm.azurewebsites.net/api/customers");
-            var jsondata = JsonSerializer.Serialize(model);
-            var content = new StringContent(jsondata, System.Text.Encoding.UTF8, "application/json");
-            crmClient.DefaultRequestHeaders.Add("Authorization", "Basic " + Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($"crmwebapi:crmwebapi")));
-            var response = await crmClient.PostAsync(postCustomerUri, content);
+            var response = client.PostCustomer(model);
 
             if (!response.IsSuccessStatusCode)
             {

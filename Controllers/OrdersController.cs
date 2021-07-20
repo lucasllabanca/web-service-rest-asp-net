@@ -13,6 +13,8 @@ using System.Web.Http.Description;
 using TrabalhoPraticoDM106.Data;
 using TrabalhoPraticoDM106.Models;
 using Microsoft.AspNet.Identity.Owin;
+using TrabalhoPraticoDM106.CRMClient;
+using TrabalhoPraticoDM106.br.com.correios.ws;
 
 namespace TrabalhoPraticoDM106.Controllers
 {
@@ -37,7 +39,9 @@ namespace TrabalhoPraticoDM106.Controllers
         }
 
         private TrabalhoPraticoDM106Context db = new TrabalhoPraticoDM106Context();
-       
+
+        private CRMRestClient client = new CRMRestClient();
+
         // GET: api/Orders
         [Authorize(Roles = "ADMIN")]
         public List<Order> GetOrders()
@@ -82,7 +86,7 @@ namespace TrabalhoPraticoDM106.Controllers
             {
                 return StatusCode(HttpStatusCode.Unauthorized);
             }
-
+            
             return Ok(order);
         }
      
@@ -151,7 +155,7 @@ namespace TrabalhoPraticoDM106.Controllers
         [ResponseType(typeof(void))]
         [HttpPut]
         [Route("shipping/{id}")]
-        public async Task<HttpResponseMessage> CalcShippingForOrder(int id)
+        public HttpResponseMessage CalcShippingForOrder(int id)
         {
 
             var cepAmazonCajamarSP = "07776901";
@@ -175,28 +179,67 @@ namespace TrabalhoPraticoDM106.Controllers
                 return response;
             }
 
-            var crmClient = new HttpClient();
-            var getByEmailUri = new Uri("http://siecolacrm.azurewebsites.net/api/customers/byemail?email=" + order.UserEmail);
-            crmClient.DefaultRequestHeaders.Add("Authorization", "Basic " + Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($"crmwebapi:crmwebapi")));
-            var getResponse = await crmClient.GetAsync(getByEmailUri);
-            response.EnsureSuccessStatusCode();
-            
-            if (!getResponse.IsSuccessStatusCode)
-            {
-                response.StatusCode = getResponse.StatusCode;
-                response.Content = new StringContent(getResponse.ReasonPhrase);
+            if (!order.Status.Equals("novo"))
+			{
+                response.StatusCode = HttpStatusCode.PreconditionFailed;
+                response.Content = new StringContent("Pedido não possui status de 'novo'! Não foi possível calcular o frete do pedido.");
                 return response;
             }
 
-            string customerJson = await response.Content.ReadAsStringAsync();
-            RegisterBindingModel customer = JsonSerializer.Deserialize<RegisterBindingModel>(customerJson);
+            if (order.OrderItems.Count == 0)
+			{
+                response.StatusCode = HttpStatusCode.Conflict;
+                response.Content = new StringContent("Pedido não possui itens! Não foi possível calcular o frete do pedido.");
+                return response;
+            }
 
-            decimal? altuTotal = order.OrderItems.Sum(orderI => orderI.Qtd * orderI.Product.Altura);
-            decimal? largTotal = order.OrderItems.Sum(orderI => orderI.Qtd * orderI.Product.Largura);
-            decimal? compTotal = order.OrderItems.Sum(orderI => orderI.Qtd * orderI.Product.Comprimento);
-            decimal? diamTotal = order.OrderItems.Sum(orderI => orderI.Qtd * orderI.Product.Diametro);
+            response = client.GetCustomerByEmail(order.UserEmail);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return response;
+            }
+			else
+			{
+
+                Customer customer = response.Content.ReadAsAsync<Customer>().Result;
+
+                if (customer == null)
+                {
+                    response.StatusCode = HttpStatusCode.NotFound;
+                    response.Content = new StringContent($"O Usuário {order.UserEmail} não foi encontrado no CRM! Não é possível calcular o frete.");
+                    return response;
+                }
+
+                if (string.IsNullOrEmpty(customer.zip)) 
+                {
+                    response.StatusCode = HttpStatusCode.NotFound;
+                    response.Content = new StringContent($"O CEP do usuário {order.UserEmail} no CRM está vazio! Não é possível calcular o frete.");
+                    return response;
+                }
+
+                cepDestino = customer.zip;
+
+            }
+      
+            decimal alturaMax = (decimal)order.OrderItems.Max(orderI => orderI.Product.Altura);
+            decimal largurMax = (decimal)order.OrderItems.Max(orderI => orderI.Product.Largura);
+            decimal compTotal = (decimal)order.OrderItems.Sum(orderI => orderI.Qtd * orderI.Product.Comprimento);
+            decimal diametMax = (decimal)order.OrderItems.Max(orderI => orderI.Product.Diametro);
             decimal pesoTotal = order.OrderItems.Sum(orderI => orderI.Qtd * orderI.Product.Peso);
             decimal precoTotal = order.OrderItems.Sum(orderI => orderI.Qtd * orderI.Product.Preco);
+            
+            CalcPrecoPrazoWS correios = new CalcPrecoPrazoWS();
+            cResultado resultado = correios.CalcPrecoPrazo("", "", "04014", cepAmazonCajamarSP, cepDestino, pesoTotal.ToString(), 1, compTotal, alturaMax, largurMax, diametMax, "N", precoTotal, "N");
+
+            if (!resultado.Servicos[0].Erro.Equals("0"))
+			{
+               //TO DO
+			}
+
+            response.StatusCode = HttpStatusCode.OK;
+            response.Content = new StringContent($"Valor do frete: {resultado.Servicos[0].Valor} - Prazo de entrega: {resultado.Servicos[0].PrazoEntrega} dia(s)");
+            return response;
 
             order.PesoTotal = pesoTotal;
             order.PrecoTotal = precoTotal;
