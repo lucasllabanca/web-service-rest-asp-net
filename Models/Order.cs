@@ -22,6 +22,7 @@ namespace TrabalhoPraticoDM106.Models
 
 		public DateTime? DataEntrega { get; set; }
 
+		[RegularExpression("novo|fechado|cancelado|entregue", ErrorMessage = "Os valores para status do pedido são novo, fechado, cancelado e entregue.")]
 		public string Status { get; set; }
 
 		public decimal PrecoTotal { get; set; }

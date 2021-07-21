@@ -118,7 +118,7 @@ namespace TrabalhoPraticoDM106.Controllers
             {
 
                 response.StatusCode = HttpStatusCode.PreconditionFailed;
-                response.Content = new StringContent("Pedido não pode ser fechado! Frete ainda não calculado.");
+                response.Content = new StringContent("O Pedido não pode ser fechado! Frete ainda não calculado.");
                 return response;
 
             }
@@ -145,7 +145,7 @@ namespace TrabalhoPraticoDM106.Controllers
                 }
             }
 
-            response.StatusCode = HttpStatusCode.NoContent;
+            response.StatusCode = HttpStatusCode.OK;
             response.Content = new StringContent("O Pedido foi fechado com sucesso!");
             return response;
 
@@ -158,7 +158,7 @@ namespace TrabalhoPraticoDM106.Controllers
         public HttpResponseMessage CalcShippingForOrder(int id)
         {
 
-            var cepAmazonCajamarSP = "07776901";
+            var cepOrigem = "07776901"; //CEP da Amazon de Cajamar - SP
             var cepDestino = "";
 
             var response = new HttpResponseMessage();
@@ -182,14 +182,14 @@ namespace TrabalhoPraticoDM106.Controllers
             if (!order.Status.Equals("novo"))
 			{
                 response.StatusCode = HttpStatusCode.PreconditionFailed;
-                response.Content = new StringContent("Pedido não possui status de 'novo'! Não foi possível calcular o frete do pedido.");
+                response.Content = new StringContent("O Pedido não possui status de 'novo'! Não é possível calcular o frete.");
                 return response;
             }
 
             if (order.OrderItems.Count == 0)
 			{
                 response.StatusCode = HttpStatusCode.Conflict;
-                response.Content = new StringContent("Pedido não possui itens! Não foi possível calcular o frete do pedido.");
+                response.Content = new StringContent("O Pedido não possui itens! Não é possível calcular o frete.");
                 return response;
             }
 
@@ -228,22 +228,56 @@ namespace TrabalhoPraticoDM106.Controllers
             decimal diametMax = (decimal)order.OrderItems.Max(orderI => orderI.Product.Diametro);
             decimal pesoTotal = order.OrderItems.Sum(orderI => orderI.Qtd * orderI.Product.Peso);
             decimal precoTotal = order.OrderItems.Sum(orderI => orderI.Qtd * orderI.Product.Preco);
+            decimal vlDeclarado = 0;
+
+            if (precoTotal >= 21) vlDeclarado = precoTotal;
             
             CalcPrecoPrazoWS correios = new CalcPrecoPrazoWS();
-            cResultado resultado = correios.CalcPrecoPrazo("", "", "04014", cepAmazonCajamarSP, cepDestino, pesoTotal.ToString(), 1, compTotal, alturaMax, largurMax, diametMax, "N", precoTotal, "N");
+            cResultado resultado = correios.CalcPrecoPrazo("", "", "04014", cepOrigem, cepDestino, pesoTotal.ToString(), 1, compTotal, alturaMax, largurMax, diametMax, "N", vlDeclarado, "N");
 
             if (!resultado.Servicos[0].Erro.Equals("0"))
 			{
-               //TO DO
-			}
+                response.StatusCode = HttpStatusCode.BadRequest;
+                response.Content = new StringContent(resultado.Servicos[0].MsgErro);
+                return response;
+            }
 
-            response.StatusCode = HttpStatusCode.OK;
-            response.Content = new StringContent($"Valor do frete: {resultado.Servicos[0].Valor} - Prazo de entrega: {resultado.Servicos[0].PrazoEntrega} dia(s)");
-            return response;
+            if (string.IsNullOrEmpty(resultado.Servicos[0].Valor))
+			{
+                response.StatusCode = HttpStatusCode.NotFound;
+                response.Content = new StringContent($"Os Correios retornou vazio para o frete! Não é possível calcular o frete.");
+                return response;
+            }
+
+            if (string.IsNullOrEmpty(resultado.Servicos[0].PrazoEntrega))
+            {
+                response.StatusCode = HttpStatusCode.NotFound;
+                response.Content = new StringContent($"Os Correios retornou vazio para o prazo! Não é possível calcular o frete.");
+                return response;
+            }
+
+            decimal frete;
+
+            if (!decimal.TryParse(resultado.Servicos[0].Valor, out frete))
+            {
+                response.StatusCode = HttpStatusCode.BadRequest;
+                response.Content = new StringContent($"Os Correios retornou um valor não numérico para o frete! Não é possível calcular o frete.");
+                return response;
+            }
+
+            int prazo;
+
+            if (!int.TryParse(resultado.Servicos[0].PrazoEntrega, out prazo))
+            {
+                response.StatusCode = HttpStatusCode.BadRequest;
+                response.Content = new StringContent($"Os Correios retornou um valor não numérico para o prazo! Não é possível calcular o frete.");
+                return response;
+            }
 
             order.PesoTotal = pesoTotal;
             order.PrecoTotal = precoTotal;
-            order.Status = "fechado";
+            order.PrecoFrete = frete;
+            order.DataEntrega = DateTime.Now.AddDays(prazo);
 
             db.Entry(order).State = EntityState.Modified;
 
@@ -265,8 +299,8 @@ namespace TrabalhoPraticoDM106.Controllers
                 }
             }
 
-            response.StatusCode = HttpStatusCode.NoContent;
-            response.Content = new StringContent("O Pedido foi fechado com sucesso!");
+            response.StatusCode = HttpStatusCode.OK;
+            response.Content = new StringContent($"O Pedido foi fechado com sucesso! Valor do Frete: {frete} - Prazo: {prazo} dias.");
             return response;
 
         }
