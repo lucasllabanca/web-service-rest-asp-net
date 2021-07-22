@@ -123,6 +123,13 @@ namespace TrabalhoPraticoDM106.Controllers
 
             }
 
+            if (order.Status.Equals("fechado"))
+            {
+                response.StatusCode = HttpStatusCode.BadRequest;
+                response.Content = new StringContent("O Pedido possui status de 'fechado'! Não é possível fechar novamente.");
+                return response;
+            }
+
             order.Status = "fechado";
 
             db.Entry(order).State = EntityState.Modified;
@@ -258,7 +265,7 @@ namespace TrabalhoPraticoDM106.Controllers
 
             decimal frete;
 
-            if (!decimal.TryParse(resultado.Servicos[0].Valor, out frete))
+            if (!decimal.TryParse(resultado.Servicos[0].Valor.Replace(",", "."), out frete))
             {
                 response.StatusCode = HttpStatusCode.BadRequest;
                 response.Content = new StringContent($"Os Correios retornou um valor não numérico para o frete! Não é possível calcular o frete.");
@@ -300,7 +307,7 @@ namespace TrabalhoPraticoDM106.Controllers
             }
 
             response.StatusCode = HttpStatusCode.OK;
-            response.Content = new StringContent($"O Pedido foi fechado com sucesso! Valor do Frete: {frete} - Prazo: {prazo} dias.");
+            response.Content = new StringContent($"O frete/prazo foi calculado com sucesso! Valor do Frete: {frete} - Prazo: {prazo} dias.");
             return response;
 
         }
