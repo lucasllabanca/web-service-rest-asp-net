@@ -1,2 +1,2 @@
-# trabalho-pratico-dm106
-Repositório privado para armazenar a solution do trabalho prático DM106
+# Web Service REST
+Web Service REST with ASP.NET, Code First, Migrations, EF and Azure
